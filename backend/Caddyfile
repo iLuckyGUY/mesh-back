@@ -1,0 +1,26 @@
+{
+    admin off
+    auto_https off
+}
+
+:80 {
+    root * /srv
+    encode gzip
+
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy mesh-bot:8080 {
+            header_up X-Real-IP {header.CF-Connecting-IP}
+            header_up X-Forwarded-For {header.CF-Connecting-IP}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    handle {
+        file_server {
+            hide .git
+        }
+        @spa not file
+        rewrite @spa /index.html
+    }
+}

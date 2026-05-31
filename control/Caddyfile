@@ -1,0 +1,35 @@
+{
+    auto_https off
+}
+
+:80 {
+    @cp host mesh-cp.cloudweb.name
+    @go host mesh-go.cloudweb.name
+    @app host mesh.cloudweb.name
+
+    handle @cp {
+        reverse_proxy mesh-cp:3000 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    handle @go {
+        reverse_proxy mesh-page:3000 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    handle @app {
+        reverse_proxy mesh-app:80 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    handle {
+        respond 404
+    }
+}
