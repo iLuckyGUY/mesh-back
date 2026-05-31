@@ -13,16 +13,16 @@ volumes:
 
 services:
   redis-cp:
-    image: valkey/valkey:9-alpine
+    image: redis:8-alpine
     container_name: redis-cp
     hostname: redis-cp
     restart: unless-stopped
-    command: valkey-server --save "" --appendonly no --maxmemory-policy noeviction --loglevel warning
+    command: redis-server --save "" --appendonly no --maxmemory-policy noeviction --loglevel warning
     volumes:
       - redis_cp_data:/data
     networks: [mesh-net]
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -68,9 +68,6 @@ services:
       WEBHOOK_SECRET_HEADER: ${WEBHOOK_SECRET_HEADER}
       SHORT_UUID_LENGTH: "24"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
-    ports:
-      - "127.0.0.1:3000:3000"
-      - "127.0.0.1:3001:3001"
     networks:
       mesh-net:
         aliases:
@@ -93,12 +90,24 @@ services:
         condition: service_healthy
     environment:
       APP_PORT: "3000"
-      REMNAWAVE_PANEL_URL: http://mesh-cp:3000
+      REMNAWAVE_PANEL_URL: http://cw-mesh-cp:3000
       REMNAWAVE_API_TOKEN: ${REMNAWAVE_API_TOKEN_PAGE}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET}
       CUSTOM_SUB_PREFIX: ""
       MARZBAN_LEGACY_LINK_ENABLED: "false"
       MARZBAN_LEGACY_SECRET_KEY: ""
-    ports:
-      - "127.0.0.1:3010:3000"
     networks: [mesh-net]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    hostname: caddy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [mesh-net]
+    depends_on:
+      mesh-cp:
+        condition: service_healthy

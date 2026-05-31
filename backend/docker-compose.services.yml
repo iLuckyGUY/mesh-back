@@ -15,16 +15,16 @@ volumes:
 
 services:
   redis-bot:
-    image: valkey/valkey:9-alpine
+    image: redis:8-alpine
     container_name: redis-bot
     hostname: redis-bot
     restart: unless-stopped
-    command: valkey-server --save "" --appendonly no --maxmemory-policy allkeys-lru --loglevel warning
+    command: redis-server --save "" --appendonly no --maxmemory-policy allkeys-lru --loglevel warning
     volumes:
       - redis_bot_data:/data
     networks: [mesh-net]
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -41,6 +41,9 @@ services:
       DATABASE_URL: ${DATABASE_URL_BOT}
       DATABASE_MODE: postgresql
       BOT_TOKEN: ${BOT_TOKEN}
+      TELEGRAM_OIDC_ENABLED: "true"
+      TELEGRAM_OIDC_CLIENT_ID: "8746136530"
+      TELEGRAM_OIDC_CLIENT_SECRET: "mC_rkXlC1_DXIeZx7HojM9sTg2bsj2IxyRryF-k5AkB5bWNUV44zYw"
       ADMIN_IDS: ${ADMIN_IDS}
       PROXY_URL: ${PROXY_URL}
       REDIS_URL: redis://:${REDIS_BOT_PASSWORD}@redis-bot:6379/0
@@ -48,12 +51,14 @@ services:
       SUPPORT_MENU_ENABLED: "false"
       CABINET_ENABLED: "true"
       CABINET_URL: ${CABINET_URL}
+      MINIAPP_CUSTOM_URL: ${CABINET_URL}
+      CABINET_TRUSTED_PROXIES: "172.0.0.0/8,10.0.0.0/8"
       CABINET_JWT_SECRET: ${CABINET_JWT_SECRET}
       CABINET_ACCESS_TOKEN_EXPIRE_MINUTES: "15"
       CABINET_REFRESH_TOKEN_EXPIRE_DAYS: "7"
       CABINET_ALLOWED_ORIGINS: ${CABINET_ALLOWED_ORIGINS}
-      CABINET_EMAIL_VERIFICATION_ENABLED: "false"
-      CABINET_EMAIL_AUTH_ENABLED: "false"
+      CABINET_EMAIL_VERIFICATION_ENABLED: "true"
+      CABINET_EMAIL_AUTH_ENABLED: "true"
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
@@ -117,7 +122,7 @@ services:
       mesh-net:
       supabase-cloudweb_default:
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8080)); s.close()\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -133,4 +138,12 @@ services:
         condition: service_started
     ports:
       - "127.0.0.1:3020:80"
+    volumes:
+      - ./mesh-app/Caddyfile:/etc/caddy/Caddyfile:ro
     networks: [mesh-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
