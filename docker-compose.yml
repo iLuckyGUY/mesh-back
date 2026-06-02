@@ -18,11 +18,13 @@ services:
     hostname: redis-cp
     restart: unless-stopped
     command: redis-server --save "" --appendonly no --maxmemory-policy noeviction --loglevel warning --requirepass ${REDIS_CP_PASSWORD}
+    environment:
+      - REDIS_CP_PASSWORD=${REDIS_CP_PASSWORD}
     volumes:
       - redis_cp_data:/data
     networks: [mesh-net]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a $${REDIS_CP_PASSWORD} --no-auth-warning ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_CP_PASSWORD} --no-auth-warning ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
