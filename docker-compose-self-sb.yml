@@ -1,3 +1,19 @@
+# ============================================================
+# mesh-control — Self-Hosted Supabase Variant
+# Use this file when PostgreSQL runs as a local Docker container
+# (supabase-cloudweb stack on the same host).
+#
+# Deploy:
+#   docker compose -p mesh-back -f docker-compose-self-sb.yml --env-file cp.env up -d
+#
+# Env file differences vs cloud variant (cp.env):
+#   DATABASE_URL_CP=postgresql://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/postgres?schema=mesh_cp
+#   (no pgbouncer — session mode works fine with local Prisma pool)
+#
+# Network: supabase-cloudweb_default must exist before deploy.
+#   docker network create supabase-cloudweb_default  (if not yet created)
+# ============================================================
+
 name: mesh-backend
 
 networks:
@@ -10,7 +26,6 @@ networks:
 volumes:
   redis_cp_data:
     name: redis_cp_data
-    external: true
 
 services:
   redis-cp:
@@ -23,7 +38,7 @@ services:
       - redis_cp_data:/data
     networks: [mesh-net]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_CP_PASSWORD} --no-auth-warning ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_CP_PASSWORD} --no-auth-warning ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -40,6 +55,7 @@ services:
       APP_PORT: "3000"
       METRICS_PORT: "3001"
       API_INSTANCES: "1"
+      # Self-hosted: uses supabase-db container via Docker DNS
       DATABASE_URL: ${DATABASE_URL_CP}
       REDIS_HOST: redis-cp
       REDIS_PORT: "6379"
@@ -73,7 +89,7 @@ services:
       mesh-net:
         aliases:
           - cw-mesh-cp
-      supabase-cloudweb_default:
+      supabase-cloudweb_default:   # реach supabase-db:5432 via Docker DNS
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
       interval: 10s
@@ -104,4 +120,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-
