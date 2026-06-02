@@ -1,0 +1,122 @@
+# ============================================================
+# mesh-control — Self-Hosted Supabase Variant
+# Use this file when PostgreSQL runs as a local Docker container
+# (supabase-cloudweb stack on the same host).
+#
+# Deploy:
+#   docker compose -p mesh-back -f docker-compose-self-sb.yml --env-file cp.env up -d
+#
+# Env file differences vs cloud variant (cp.env):
+#   DATABASE_URL_CP=postgresql://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/postgres?schema=mesh_cp
+#   (no pgbouncer — session mode works fine with local Prisma pool)
+#
+# Network: supabase-cloudweb_default must exist before deploy.
+#   docker network create supabase-cloudweb_default  (if not yet created)
+# ============================================================
+
+name: mesh-backend
+
+networks:
+  mesh-net:
+    name: mesh-net
+    external: true
+  supabase-cloudweb_default:
+    external: true
+
+volumes:
+  redis_cp_data:
+    name: redis_cp_data
+
+services:
+  redis-cp:
+    image: redis:8-alpine
+    container_name: redis-cp
+    hostname: redis-cp
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no --maxmemory-policy noeviction --loglevel warning --requirepass ${REDIS_CP_PASSWORD}
+    volumes:
+      - redis_cp_data:/data
+    networks: [mesh-net]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_CP_PASSWORD} --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mesh-cp:
+    image: iluckyguy/mesh-cp:latest
+    container_name: mesh-cp
+    hostname: mesh-cp
+    restart: unless-stopped
+    depends_on:
+      redis-cp:
+        condition: service_healthy
+    environment:
+      APP_PORT: "3000"
+      METRICS_PORT: "3001"
+      API_INSTANCES: "1"
+      # Self-hosted: uses supabase-db container via Docker DNS
+      DATABASE_URL: ${DATABASE_URL_CP}
+      REDIS_HOST: redis-cp
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_CP_PASSWORD}
+      REDIS_DB: "0"
+      JWT_AUTH_SECRET: ${JWT_AUTH_SECRET}
+      JWT_API_TOKENS_SECRET: ${JWT_API_TOKENS_SECRET}
+      JWT_AUTH_LIFETIME: "168"
+      IS_TELEGRAM_NOTIFICATIONS_ENABLED: ${IS_TELEGRAM_NOTIFICATIONS_ENABLED}
+      TELEGRAM_BOT_TOKEN: ${BOT_TOKEN}
+      TELEGRAM_BOT_PROXY: ${PROXY_URL}
+      TELEGRAM_NOTIFY_USERS: ${TELEGRAM_NOTIFY_USERS}
+      TELEGRAM_NOTIFY_NODES: ${TELEGRAM_NOTIFY_NODES}
+      TELEGRAM_NOTIFY_CRM: ${TELEGRAM_NOTIFY_CRM}
+      TELEGRAM_NOTIFY_SERVICE: ${TELEGRAM_NOTIFY_SERVICE}
+      TELEGRAM_NOTIFY_TBLOCKER: ${TELEGRAM_NOTIFY_TBLOCKER}
+      PANEL_DOMAIN: ${PANEL_DOMAIN}
+      FRONT_END_DOMAIN: ${PANEL_DOMAIN}
+      SUB_PUBLIC_DOMAIN: ${SUB_PUBLIC_DOMAIN}
+      SWAGGER_PATH: /docs
+      SCALAR_PATH: /scalar
+      IS_DOCS_ENABLED: "false"
+      METRICS_USER: admin
+      METRICS_PASS: ${METRICS_PASS}
+      WEBHOOK_ENABLED: "false"
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_SECRET_HEADER: ${WEBHOOK_SECRET_HEADER}
+      SHORT_UUID_LENGTH: "24"
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+    networks:
+      mesh-net:
+        aliases:
+          - cw-mesh-cp
+      supabase-cloudweb_default:   # реach supabase-db:5432 via Docker DNS
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  mesh-page:
+    image: iluckyguy/mesh-page:latest
+    container_name: mesh-page
+    hostname: mesh-page
+    restart: unless-stopped
+    depends_on:
+      mesh-cp:
+        condition: service_healthy
+    environment:
+      APP_PORT: "3000"
+      REMNAWAVE_PANEL_URL: http://cw-mesh-cp:3000
+      REMNAWAVE_API_TOKEN: ${REMNAWAVE_API_TOKEN_PAGE}
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET}
+      CUSTOM_SUB_PREFIX: ""
+      MARZBAN_LEGACY_LINK_ENABLED: "false"
+      MARZBAN_LEGACY_SECRET_KEY: ""
+    networks: [mesh-net]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').createConnection(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
