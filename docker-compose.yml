@@ -32,9 +32,7 @@ services:
       retries: 3
 
   mesh-bot:
-    build:
-      context: ./mesh-bot
-    image: ghcr.io/iluckyguy/mesh-bot:latest
+    image: iluckyguy/mesh-bot:latest
     container_name: mesh-bot
     hostname: mesh-bot
     restart: unless-stopped
