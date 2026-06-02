@@ -68,13 +68,13 @@ docker network create mesh-net
 ### 2. Собрать и запушить образы
 
 ```bash
-# control/
+# backend/ — панель управления
 docker build -t iluckyguy/mesh-cp:latest ./mesh-cp
 docker build -t iluckyguy/mesh-page:latest ./mesh-page
 docker push iluckyguy/mesh-cp:latest
 docker push iluckyguy/mesh-page:latest
 
-# backend/
+# frontend/ — юзер-сервисы
 docker build -t iluckyguy/mesh-bot:latest ./mesh-bot
 docker build -t iluckyguy/mesh-app:latest ./mesh-app
 docker push iluckyguy/mesh-bot:latest
@@ -86,16 +86,16 @@ docker push iluckyguy/mesh-app:latest
 - **Name:** `mesh-control`
 - **Build method:** `Stack`
 - **Webhook:** optional
-- **Compose:** paste contents of `control/docker-compose.control.yml`
-- **Environment variables:** paste contents of `control/prod.env`
+- **Compose:** paste contents of `backend/docker-compose.yml`
+- **Environment variables:** paste contents of `backend/cp.env`
 - **Deploy**
 
 ### 4. Portainer — Stack 2: mesh-services
 
 - **Name:** `mesh-services`
 - **Build method:** `Stack`
-- **Compose:** paste contents of `backend/docker-compose.services.yml`
-- **Environment variables:** paste contents of `backend/prod.env`
+- **Compose:** paste contents of `frontend/docker-compose.yml`
+- **Environment variables:** paste contents of `frontend/.env`
 - **Deploy**
 
 ### 5. Portainer — Stack 3: mesh-tunnel
@@ -132,34 +132,30 @@ curl https://mesh.cloudweb.name
 ## Файлы
 
 ```
-mesh-cloudweb-new/
-├── control/
-│   ├── docker-compose.control.yml   # mesh-cp + mesh-page + redis-cp
-│   ├── prod.env                     # stack env for Portainer (mesh-control)
+mesh-cloudweb/
+├── backend/                         # панель управления
+│   ├── docker-compose.yml           # mesh-cp + mesh-page + redis-cp
+│   ├── cp.env                       # stack env for Portainer (mesh-control)
 │   ├── mesh-cp/
 │   │   ├── .env.sample              # оригинал автора — НЕ ТРОГАТЬ
-│   │   ├── .env                     # локальный дев
-│   │   └── panel.env                # копия .env.sample + реальные данные
+│   │   └── .env                     # локальный дев (gitignored)
 │   └── mesh-page/
 │       ├── .env.sample              # оригинал автора — НЕ ТРОГАТЬ
-│       ├── .env                     # локальный дев
-│       └── page.env                 # копия .env.sample + реальные данные
+│       └── .env                     # локальный дев (gitignored)
 │
-├── backend/
-│   ├── docker-compose.services.yml  # mesh-bot + mesh-app + redis-bot
-│   ├── prod.env                     # stack env for Portainer (mesh-services)
+├── frontend/                        # юзер-сервисы
+│   ├── docker-compose.yml           # mesh-bot + mesh-app + redis-bot
+│   ├── .env                         # stack env for Portainer (mesh-services)
+│   ├── bot.env                      # расширенный env mesh-bot (80+ vars)
 │   ├── mesh-bot/
 │   │   ├── .env.example             # оригинал автора — НЕ ТРОГАТЬ
-│   │   ├── .env                     # локальный дев
-│   │   └── bot.env                  # копия .env.example + реальные данные
+│   │   └── .env                     # локальный дев (gitignored)
 │   └── mesh-app/
 │       ├── .env.example             # оригинал автора — НЕ ТРОГАТЬ
-│       ├── .env                     # локальный дев
-│       └── app.env                  # копия .env.example + реальные данные
+│       └── .env                     # локальный дев (gitignored)
 │
 ├── tunnel/
 │   ├── docker-compose.yml           # cloudflared-tunnel
-│   ├── .env                         # черновик
 │   └── tunnel.env                   # deploy env — вписать CF_TUNNEL_TOKEN
 │
-└── DEPLOY.md              # этот файл
+└── DEPLOY.md                        # этот файл

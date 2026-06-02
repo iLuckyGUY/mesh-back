@@ -1,18 +1,19 @@
 # Embedded git repos (forks of upstream — each has own remote)
-/control/mesh-cp/
-/control/mesh-page/
-/backend/mesh-bot/
-/backend/mesh-app/
+/backend/mesh-cp/
+/backend/mesh-page/
+/frontend/mesh-bot/
+/frontend/mesh-app/
 
 # Tunnel is its own git repo
 /tunnel/
 
-# Secrets — ignore all .env except tracked samples and full-prod.env
+# Secrets — ignore all env files
 .env
 panel.env
 page.env
 bot.env
 app.env
+cp.env
 tunnel.env
 stack.env
 prod.env
