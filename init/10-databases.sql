@@ -1,0 +1,2 @@
+CREATE DATABASE mesh_cp;
+CREATE DATABASE mesh_bot;
