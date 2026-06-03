@@ -19,18 +19,31 @@ services:
     hostname: mesh-postgres
     restart: unless-stopped
     environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: mesh_cp
       TZ: UTC
     volumes:
-      - mesh_pg_data:/var/lib/postgresql
-      - ./init:/docker-entrypoint-initdb.d:ro
+      - mesh_pg_data:/var/lib/postgresql/data
     networks: [mesh-net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mesh_cp"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  mesh-postgres-init:
+    image: postgres:18.3
+    container_name: mesh-postgres-init
+    restart: "no"
+    depends_on:
+      mesh-postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${PG_PASSWORD}
+    command: psql -h mesh-postgres -U postgres -c "CREATE DATABASE mesh_bot;" || true
+    networks: [mesh-net]
 
   redis-cp:
     image: redis:8-alpine
