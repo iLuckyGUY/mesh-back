@@ -7,44 +7,8 @@ networks:
 
 volumes:
   redis_cp_data:
-    name: redis_cp_data
-    external: true
-  mesh_pg_data:
-    name: mesh_pg_data
 
 services:
-  mesh-postgres:
-    image: postgres:18.3
-    container_name: mesh-postgres
-    hostname: mesh-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: mesh_cp
-      TZ: UTC
-    volumes:
-      - mesh_pg_data:/var/lib/postgresql/data
-    networks: [mesh-net]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d mesh_cp"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-
-  mesh-postgres-init:
-    image: postgres:18.3
-    container_name: mesh-postgres-init
-    restart: "no"
-    depends_on:
-      mesh-postgres:
-        condition: service_healthy
-    environment:
-      PGPASSWORD: ${PG_PASSWORD}
-    command: psql -h mesh-postgres -U postgres -c "CREATE DATABASE mesh_bot;" || true
-    networks: [mesh-net]
-
   redis-cp:
     image: redis:8-alpine
     container_name: redis-cp
@@ -67,8 +31,6 @@ services:
     restart: unless-stopped
     depends_on:
       redis-cp:
-        condition: service_healthy
-      mesh-postgres:
         condition: service_healthy
     environment:
       APP_PORT: "3000"
@@ -103,10 +65,7 @@ services:
       WEBHOOK_SECRET_HEADER: ${WEBHOOK_SECRET_HEADER}
       SHORT_UUID_LENGTH: "24"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
-    networks:
-      mesh-net:
-        aliases:
-          - cw-mesh-cp
+    networks: [mesh-net]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
       interval: 10s
@@ -124,7 +83,7 @@ services:
         condition: service_healthy
     environment:
       APP_PORT: "3000"
-      REMNAWAVE_PANEL_URL: http://cw-mesh-cp:3000
+      REMNAWAVE_PANEL_URL: http://mesh-cp:3000
       REMNAWAVE_API_TOKEN: ${REMNAWAVE_API_TOKEN_PAGE}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET}
       CUSTOM_SUB_PREFIX: ""
