@@ -7,11 +7,7 @@ networks:
 
 volumes:
   redis_bot_data:
-    name: redis_bot_data
-    external: true
   mesh_bot_data:
-    name: mesh_bot_data
-    external: true
 
 services:
   redis-bot:
@@ -32,7 +28,7 @@ services:
       retries: 3
 
   mesh-bot:
-    image: ghcr.io/iluckyguy/mesh-bot:latest
+    image: iluckyguy/mesh-bot:latest
     container_name: mesh-bot
     hostname: mesh-bot
     restart: unless-stopped
@@ -130,8 +126,7 @@ services:
       - WATA_ENABLED=${WATA_ENABLED:-false}
     volumes:
       - mesh_bot_data:/app/data
-    networks:
-      mesh-net:
+    networks: [mesh-net]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8080)); s.close()\""]
       interval: 30s
