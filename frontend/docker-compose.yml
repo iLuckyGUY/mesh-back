@@ -53,8 +53,8 @@ services:
       - COMMUNITY_URL=${COMMUNITY_URL}
       - GITHUB_BOT_URL=${GITHUB_BOT_URL:-https://github.com/iLuckyGUY/mesh-bot}
       - GITHUB_CABINET_URL=${GITHUB_CABINET_URL:-https://github.com/iLuckyGUY/mesh-app}
-      - CABINET_REPO=${CABINET_REPO:-iLuckyGUY/mesh-app}
-      - VERSION_CHECK_REPO=${VERSION_CHECK_REPO:-iLuckyGUY/mesh-bot}
+       - CABINET_REPO=${CABINET_REPO:-BEDOLAGA-DEV/bedolaga-cabinet}
+       - VERSION_CHECK_REPO=${VERSION_CHECK_REPO:-BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot}
       - CABINET_ENABLED=true
       - CABINET_URL=${CABINET_URL}
       - MINIAPP_CUSTOM_URL=${CABINET_URL}
