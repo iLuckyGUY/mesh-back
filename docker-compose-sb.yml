@@ -4,9 +4,13 @@ networks:
   mesh-net:
     name: mesh-net
     external: true
+  supabase-cloudweb_default:
+    external: true
 
 volumes:
   redis_cp_data:
+    name: redis_cp_data
+    external: true
 
 services:
   redis-cp:
@@ -65,7 +69,11 @@ services:
       WEBHOOK_SECRET_HEADER: ${WEBHOOK_SECRET_HEADER}
       SHORT_UUID_LENGTH: "24"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
-    networks: [mesh-net]
+    networks:
+      mesh-net:
+        aliases:
+          - cw-mesh-cp
+      supabase-cloudweb_default:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
       interval: 10s
@@ -83,7 +91,7 @@ services:
         condition: service_healthy
     environment:
       APP_PORT: "3000"
-      REMNAWAVE_PANEL_URL: http://mesh-cp:3000
+      REMNAWAVE_PANEL_URL: http://cw-mesh-cp:3000
       REMNAWAVE_API_TOKEN: ${REMNAWAVE_API_TOKEN_PAGE}
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET}
       CUSTOM_SUB_PREFIX: ""
