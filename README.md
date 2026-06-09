@@ -1,9 +1,9 @@
 <div align="center">
   <img src="https://wplogobit.wordpress.com/wp-content/uploads/2026/04/logo_g_retina.png" alt="CloudWEB Mesh" width="120"/>
 
-  # CloudWEB Mesh — Backend Stack
+  # CloudWEB Mesh
 
-  **Admin panel (Remnawave) + Subscription page + Redis**
+  **Admin panel (Remnawave) + Subscription page + Redis**  — Backend Stack
 
   <br/>
 </div>
