@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | **mesh-cp** (панель) | `iLuckyGUY/mesh-cp` | `remnawave/backend` | `iluckyguy/mesh-cp` | `backend/mesh-cp/` (отдельный git) |
 | **mesh-page** (страница) | `iLuckyGUY/mesh-page` | `remnawave/subscription-page` | `iluckyguy/mesh-page` | `backend/mesh-page/` (отдельный git) |
-| **mesh-bot** | `iLuckyGUY/mesh-bot` | `fr1ngg/remnawave-bedolaga-telegram-bot` | `iluckyguy/mesh-bot` | `frontend/mesh-bot/` (в монорепе) |
+| **mesh-bot** | `iLuckyGUY/mesh-bot` | `BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot` | `iluckyguy/mesh-bot` | `frontend/mesh-bot/` (в монорепе) |
 | **mesh-app** | `iLuckyGUY/mesh-app` | `BEDOLAGA-DEV/bedolaga-cabinet` | `iluckyguy/mesh-app` | `frontend/mesh-app/` (в монорепе) |
 
 ## Сборка образов
@@ -52,6 +52,18 @@ docker buildx build --platform linux/amd64 \
 cd backend/mesh-page
 docker buildx build --platform linux/amd64 \
   --tag iluckyguy/mesh-page:latest --tag iluckyguy/mesh-page:<version> \
+  --push .
+
+# mesh-bot
+cd frontend/mesh-bot
+docker buildx build --platform linux/amd64 \
+  --tag iluckyguy/mesh-bot:latest --tag iluckyguy/mesh-bot:<version> \
+  --push .
+
+# mesh-app
+cd frontend/mesh-app
+docker buildx build --platform linux/amd64 \
+  --tag iluckyguy/mesh-app:latest --tag iluckyguy/mesh-app:<version> \
   --push .
 ```
 
@@ -121,11 +133,62 @@ git push origin v<версия> --force
 
 ## Деплой (Portainer)
 
-Настроен auto-pull каждые 4 минуты для стека `mesh-cw` (id 110).
-Портаиновский стек обновляет mesh-cp, mesh-page, redis-cp.
+### GitOps (основной способ)
 
-После пуша образа на Docker Hub — Portainer сам подхватит в течение 4 минут.
-Принудительно: Portainer → Stacks → mesh-cw → Update stack → Pull images → Deploy.
+Оба стека используют GitOps (не auto-pull по Docker Hub):
+
+| Стек | Репозиторий | Интервал | Endpoint |
+|------|-------------|----------|----------|
+| `mesh-back` (стек 5) | `iLuckyGUY/mesh-back` | poll 5m | 8 (213.182.213.22) |
+| `mesh-front` (стек 6) | `iLuckyGUY/mesh-front` | poll 5m | 8 (213.182.213.22) |
+
+**Триггер:** новый коммит в git-репозитории (не новый образ на Docker Hub).
+После пуша образа нужно **также запушить коммит** в `mesh-front/` (обновить submodule pointer).
+
+### Полный workflow обновления
+
+```
+1. git merge upstream (бот/кабинет)
+2. docker buildx build --push  (сборка образов)
+3. git commit -m "update bot vX.Y.Z"  (в mesh-bot, mesh-app)
+4. git commit -m "chore: update submodules"  (в mesh-front — parent repo)
+5. git push (все три репозитория)
+6. Portainer сам подхватывает за ≤5 мин
+```
+
+### Force redeploy через API
+
+Если нужно принудительно перезапустить стек с pullImage:
+```bash
+curl -sk -X PUT \
+  -H "X-API-Key: $PORTAINER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pullImage": true}' \
+  "https://localhost:9443/api/stacks/{id}/git/redeploy?endpointId=8"
+```
+
+### Fallback: ручной redeploy через Portainer UI
+
+Portainer → Stacks → mesh-front → Update stack → Pull images → Deploy.
+
+### Диагностика: если контейнеры не стартуют
+
+После GitOps-перезапуска контейнеры могут быть в статусе `created`/`restarting`.
+Проверить через Portainer или SSH:
+
+```bash
+ssh root@fra-1-hm-001-cloudweb-root
+docker ps --filter name=mesh --filter name=redis
+docker logs redis-bot --tail 30
+docker logs mesh-bot --tail 30
+docker logs mesh-app --tail 30
+```
+
+**Известная проблема:** `redis-bot:8-alpine` может упасть с ошибкой пароля,
+если `${REDIS_BOT_PASSWORD}` не подставился из stack env. Проверить:
+- Переменная есть в Portainer → Stack → Env
+- Имя переменной совпадает в `docker-compose.yml` (и в `command:` и в `environment:`)
+- Если не помогает — принудительно пересоздать стек через Force redeploy API
 
 ## Upstream-репозитории
 
@@ -133,9 +196,23 @@ git push origin v<версия> --force
 |---|---|---|
 | mesh-cp | `remnawave/backend` | `remnawave/backend` (также тэг `2`) |
 | mesh-page | `remnawave/subscription-page` | `remnawave/subscription-page` |
-| mesh-bot | `fr1ngg/remnawave-bedolaga-telegram-bot` | `fr1ngg/remnawave-bedolaga-telegram-bot` |
+| mesh-bot | `BEDOLAGA-DEV/remnawave-bedolaga-telegram-bot` | `fr1ngg/remnawave-bedolaga-telegram-bot` |
 | mesh-app | `BEDOLAGA-DEV/bedolaga-cabinet` или `fr1ngg/bedolaga-cabinet` | — |
 | frontend | `remnawave/frontend` (встраивается в mesh-cp при сборке) | — |
+
+### Portainer API key
+
+Сохраняется в `~/.portainer_key` (общий для всех проектов, вне git).
+```bash
+source ~/.portainer_key
+```
+
+### SSH на сервер
+
+```bash
+ssh root@fra-1-hm-001-cloudweb-root
+# или ssh -o StrictHostKeyChecking=accept-new root@fra-1-hm-001-cloudweb-root
+```
 
 ## Полезные команды
 

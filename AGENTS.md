@@ -27,9 +27,17 @@ Internet → Cloudflare Edge → Cloudflare Tunnel (outbound from server)
 
 | Стек | Состав | Управление |
 |------|--------|-----------|
-| `mesh-cw` (Portainer stack 110) | mesh-cp, mesh-page, redis-cp, postgres, cloudflared-tunnel, caddy | Через Portainer (git-pull) |
-| `mesh-front` (Portainer stack 174) | mesh-bot, mesh-app, redis-bot | Ранее через Portainer, сейчас контейнеры управляются вручную (`docker run`) |
-| Отдельные стеки БД | postgres (mesh-cw), supabase (внешний) | См. раздел 7 |
+| `mesh-back` (Portainer stack 5) | mesh-cp, mesh-page, redis-cp, postgres, cloudflared-tunnel, caddy | Portainer GitOps (репо `iLuckyGUY/mesh-back`, poll 5m) |
+| `mesh-front` (Portainer stack 6) | mesh-bot, mesh-app, redis-bot | Portainer GitOps (репо `iLuckyGUY/mesh-front`, poll 5m) |
+| Отдельные стеки БД | postgres (mesh-back), supabase (внешний) | См. раздел 7 |
+
+### Portainer
+
+Локальный Portainer на `https://localhost:9443` управляет удалёнными агентами:
+- `Mesh CloudWEB` (endpoint 8, `213.182.213.22:9001`) — основной сервер, на нём mesh-back + mesh-front
+- `Stack Control Main` (endpoint 3) — локальный Mac Mini, только для тестов
+
+**API-ключ** сохранён в `~/.portainer_key` (общий для всех проектов).
 
 ### Services — Portainer Labels
 
@@ -154,6 +162,67 @@ Fallback при сбое CI — ручная сборка:
 docker buildx build --platform linux/amd64 \
   --tag iluckyguy/mesh-xxx:latest --push .
 ```
+
+## 6b. Полный workflow обновления (bot + app) — проверено на v3.62.0 / v1.59.0
+
+Portainer использует **GitOps**: каждый стек следит за своим git-репозиторием и
+перезапускается при новом коммите. Триггер — **именно новый коммит**, а не новый образ
+на Docker Hub.
+
+Правильная последовательность:
+
+```
+1. Обновить код           → git merge upstream (бот: mesh-bot/, кабинет: mesh-app/)
+2. Собрать Docker образы  → docker buildx build --push (вручную или CI)
+3. Закоммитить версию     → git commit (обновить submodule pointer в mesh-front/)
+4. Запушить в GitHub      → git push (бот, кабинет, и mesh-front — все три репозитория)
+5. Portainer GitOps       → замечает новый коммит в mesh-front за ≤5 мин
+6. Перезапуск стека       → Portainer дёргает `docker compose up -d` с новыми :latest
+```
+
+**Fix для ForcePullImage:** GitOps не тянет образы принудительно. Если надо —
+через Portainer API:
+```bash
+curl -sk -X PUT \
+  -H "X-API-Key: $PORTAINER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pullImage": true}' \
+  "https://localhost:9443/api/stacks/{id}/git/redeploy?endpointId={ep}"
+```
+
+### Структура git-репозиториев
+
+| Репо | Содержит | Роль |
+|---|---|---|
+| `iLuckyGUY/mesh-front` | `docker-compose.yml` + submodule pointer на bot/app | **Триггер GitOps** — коммит сюда перезапускает стек |
+| `iLuckyGUY/mesh-bot` | Исходный код Python-бота | После пуша можно собрать образ (CI или вручную) |
+| `iLuckyGUY/mesh-app` | Исходный код React-кабинета | После пуша можно собрать образ (CI или вручную) |
+
+Внутри монорепы `mesh-front/` лежат вложенные git-репозитории `mesh-bot/` и `mesh-app/`.
+После их обновления нужно закоммитить новый submodule pointer в `mesh-front/`.
+
+### Migration (Alembic)
+
+Миграции БД mesh-bot запускаются **автоматически** при старте контейнера —
+в `main.py` есть startup-хук. Новые файлы в `migrations/alembic/versions/` не требуют
+ручного запуска.
+
+### Если контейнеры не стартуют
+
+Проверить логи через Portainer или SSH:
+```bash
+ssh fra-1-hm-001-cloudweb-root
+docker logs redis-bot --tail 50
+docker logs mesh-bot --tail 50
+docker logs mesh-app --tail 50
+```
+
+**Типичная проблема:** `redis-bot` в статусе restarting. Если в логах
+```
+FATAL CONFIG FILE ERROR ... 'requirepass "--loadmodule"'
+```
+— значит переменные окружения не подставились, команда сломана. Проверить
+`REDIS_BOT_PASSWORD` в Portainer → Stack → Env и в `docker-compose.yml`.
 
 ---
 
