@@ -43,7 +43,7 @@ mesh-front (companion repo):
 |-------------|-------|
 | **Docker** + **Docker Compose** | v2.20+ recommended |
 | **Docker network `mesh-net`** | `docker network create mesh-net` |
-| **PostgreSQL** | External DB (Supabase / self-hosted / cloud) — see [Database](#database) |
+| **PostgreSQL** | Self-hosted — see [Database](#database) |
 | **Cloudflare Tunnel** | For routing traffic to containers — see [Cloudflare Setup](#cloudflare-setup) |
 | **Companion repo** | [`iLuckyGUY/mesh-front`](https://github.com/iLuckyGUY/mesh-front) — Telegram bot + user cabinet |
 
@@ -198,8 +198,6 @@ All panel tables live in the `mesh_cp` schema. Prisma auto-creates them on first
 | File | Use Case |
 |------|----------|
 | `docker-compose.yml` | Basic — needs external PostgreSQL |
-| `docker-compose-sb.yml` | Legacy — Supabase cloud (не используется) |
-| `docker-compose-self-sb.yml` | Legacy — Self-hosted Supabase (не используется) |
 
 ---
 
