@@ -14,7 +14,7 @@ services:
     container_name: redis-cp
     hostname: redis-cp
     restart: unless-stopped
-    command: redis-server --save "" --appendonly no --maxmemory-policy noeviction --loglevel warning --requirepass ${REDIS_CP_PASSWORD}
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction", "--loglevel", "warning", "--requirepass", "${REDIS_CP_PASSWORD}"]
     volumes:
       - redis_cp_data:/data
     networks: [mesh-net]
