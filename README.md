@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://wplogobit.wordpress.com/wp-content/uploads/2026/04/logo_g_retina.png" alt="CloudWEB Mesh" width="120"/>
+  <img src="https://aibcore.wordpress.com/wp-content/uploads/2026/04/logo_g_retina.png" alt="CloudWEB Mesh" width="120"/>
 
   # CloudWEB Mesh
 
