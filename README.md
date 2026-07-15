@@ -85,30 +85,21 @@ docker network create mesh-net
 
 ### 2. Start PostgreSQL
 
-Choose one:
-
-<details>
-<summary><b>A. Supabase Cloud</b> (managed, recommended)</summary>
-
-Create a Supabase project and get the connection string in session mode:
-```
-postgresql://postgres.<ref>:<password>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres?schema=mesh_cp&pgbouncer=true
-```
-
-No local Docker container needed — just set `DATABASE_URL_CP` in your env.
-</details>
-
-<details>
-<summary><b>B. Self-hosted PostgreSQL</b> (local Docker)</summary>
+**Self-hosted PostgreSQL** (локальный контейнер):
 
 ```bash
-docker run -d --name postgres --network mesh-net \
+docker run -d --name PostgreSQL --network mesh-net \
+  -v postgres_data:/var/lib/postgresql/data \
   -e POSTGRES_DB=mesh_cp \
-  -e POSTGRES_USER=mesh_user \
+  -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=<strong-password> \
   postgres:16-alpine
 ```
-</details>
+
+Для mesh-bot дополнительно создать БД:
+```bash
+docker exec PostgreSQL psql -U postgres -c "CREATE DATABASE mesh_bot;"
+```
 
 ### 3. Configure environment
 
@@ -167,8 +158,8 @@ The Tunnel connects **outbound** from your server — no open firewall ports nee
 
 | Parameter | Format |
 |-----------|--------|
-| `DATABASE_URL_CP` | `postgresql://user:pass@host:5432/db?schema=mesh_cp` |
-| Via Supabase pooler (session mode) | `postgresql://postgres.<ref>:<password>@aws-1-{region}.pooler.supabase.com:5432/postgres?schema=mesh_cp&pgbouncer=true` |
+| `DATABASE_URL_CP` | `postgresql://postgres:pass@PostgreSQL:5432/mesh_cp` |
+| `DATABASE_URL_BOT` | `postgresql+asyncpg://postgres:pass@PostgreSQL:5432/mesh_bot` |
 
 ### Schema
 
@@ -207,8 +198,8 @@ All panel tables live in the `mesh_cp` schema. Prisma auto-creates them on first
 | File | Use Case |
 |------|----------|
 | `docker-compose.yml` | Basic — needs external PostgreSQL |
-| `docker-compose-sb.yml` | Supabase cloud — connects to supabase-cloudweb_default network |
-| `docker-compose-self-sb.yml` | Self-hosted Supabase |
+| `docker-compose-sb.yml` | Legacy — Supabase cloud (не используется) |
+| `docker-compose-self-sb.yml` | Legacy — Self-hosted Supabase (не используется) |
 
 ---
 

@@ -29,7 +29,7 @@ Internet → Cloudflare Edge → Cloudflare Tunnel (outbound from server)
 |------|--------|-----------|
 | `mesh-back` (Portainer stack 5) | mesh-cp, mesh-page, redis-cp, postgres, cloudflared-tunnel, caddy | Portainer GitOps (репо `iLuckyGUY/mesh-back`, poll 5m) |
 | `mesh-front` (Portainer stack 6) | mesh-bot, mesh-app, redis-bot | Portainer GitOps (репо `iLuckyGUY/mesh-front`, poll 5m) |
-| Отдельные стеки БД | postgres (mesh-back), supabase (внешний) | См. раздел 7 |
+| Отдельные стеки БД | postgres (mesh-back) | Встроенная БД в mesh-back |
 
 ### Portainer
 
@@ -133,15 +133,11 @@ networks:
 ```
 Все сервисы mesh стека всегда на `mesh-net`.
 ```
-mesh-cp  → mesh-net → supabase-db:5432  (Docker DNS, cf. ниже)
-mesh-bot → mesh-net → supabase-db:5432
+mesh-cp  → mesh-net → PostgreSQL:5432  (локальный PostgreSQL контейнер)
+mesh-bot → mesh-net → PostgreSQL:5432
 mesh-page, mesh-app, redis → mesh-net (взаимодействие между собой)
 caddy, cloudflared-tunnel → mesh-net (доступ к контейнерам)
 ```
-
-### почему не через домен
-- `grand-supabase.cloudweb.name` работает для Kong (HTTP) и Studio, НО НЕ для PostgreSQL — CF Tunnel не проксирует PgSQL без warp-routing
-- Docker DNS (`supabase-db:5432`) работает на любой ОС без правок env при переезде
 
 ## 6. Docker Hub — образы и их сборка
 
@@ -226,94 +222,7 @@ FATAL CONFIG FILE ERROR ... 'requirepass "--loadmodule"'
 
 ---
 
-## 7. Supabase Database — Схемы и подключение
-
-### 7.1. Supabase Project
-
-| Параметр | Значение |
-|----------|----------|
-| Project ref | `vgwwidekswqeffltqhag` |
-| Pooler host | `aws-1-eu-central-1.pooler.supabase.com` (⚠️ не `aws-0`) |
-| DB password | `${SUPABASE_DB_PASSWORD}` (в `~/.ai/env/keys.env`) |
-| MCP config | `~/.config/opencode/opencode.json` → `mcp.supabase` (remote, OAuth) |
-| Management PAT | `${SUPABASE_MANAGEMENT_PAT}` (в `~/.ai/env/keys.env`) |
-| Где взять PAT | `https://supabase.com/dashboard/account/tokens` |
-| Аутентификация MCP | `opencode mcp auth supabase` |
-
-### 7.2. Схемы
-
-Одна БД, разные схемы для разных сервисов. Никогда не путай, с какой схемой работаешь.
-
-| Схема | Владелец | Сервис | Статус |
-|-------|----------|--------|--------|
-| `mesh_bot` | mesh-bot | Telegram bot + Cabinet API | ✅ перенесена в облако |
-| `mesh_cp` | mesh-cp | Remnawave панель | ✅ перенесена в облако |
-| `crm` | — | CRM (пустая) | ✅ создана в облаке |
-
-### 7.3. Как подключаться
-
-**Локально (Mac Mini)** — через Docker DNS:
-```
-postgresql+asyncpg://postgres:${SUPABASE_DB_PASSWORD}@supabase-db:5432/postgres
-```
-
-**Облачно (Supabase FRA)** — через pooler (session mode 5432 / transaction 6543):
-```
-# Bot (asyncpg, session mode)
-postgresql+asyncpg://postgres.${PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-1-eu-central-1.pooler.supabase.com:5432/postgres?search_path=mesh_bot
-
-# CP (Prisma, transaction mode + pgbouncer)
-postgresql://postgres.${PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?schema=mesh_cp&pgbouncer=true
-```
-
-Пароль хранится в `~/.ai/env/keys.env` → `SUPABASE_DB_PASSWORD` и в `stack.env` файлах проектов.
-
-### 7.4. Когда и каким инструментом работать
-
-| Действие | Инструмент |
-|----------|-----------|
-| SELECT / INSERT / UPDATE / DELETE (с RLS) | Supabase MCP (через opencode) |
-| DDL (CREATE TABLE, ALTER, миграции) | `PGPASSWORD=... psql -h aws-1-... -U postgres.vgwwidekswqeffltqhag -d postgres -p 5432` |
-| Создание схемы для нового сервиса | `CREATE SCHEMA IF NOT EXISTS <name>;` |
-| Копирование схемы между БД | `pg_dump` + pipe to `psql` (см. ниже) |
-| Миграции mesh-bot | Alembic (`migrations/alembic/`) — сам создаёт таблицы в `mesh_bot` |
-| Миграции mesh-cp | Prisma — сам создаёт таблицы в `mesh_cp` |
-
-### 7.5. Правила
-
-1. **Всегда указывай schema** в SQL запросах: `SELECT * FROM mesh_bot.users` — даже если search_path настроен.
-2. **Никогда не делай DROP / TRUNCATE / DELETE без WHERE** в `mesh_bot` или `mesh_cp` — спроси разрешения.
-3. **Не редактируй `auth` и `storage` схемы** — это Supabase internal.
-4. **Новые сервисы** получают свою схему: `CREATE SCHEMA IF NOT EXISTS service_name;`. Никогда не сваливай таблицы разных сервисов в одну схему.
-5. **`public` схема** — для shared данных между сервисами (справочники, общие конфиги). Не занимать без необходимости.
-6. **Pooler host** — всегда `aws-1-{region}.pooler.supabase.com`, НЕ `aws-0`. Разные шифры пулеров назначаются проектам произвольно.
-7. **Пароль** можно сбросить через Management API: `PATCH /v1/projects/{ref}/database/password` с PAT-токеном.
-8. **DDL через pooler** — только session mode (port 5432). Transaction mode (port 6543) не поддерживает CREATE TABLE и prepared statements.
-
-### 7.6. Миграция локальный → облачный (checklist)
-
-```bash
-# 1. Создать схемы в облаке (если не существуют)
-PGPASSWORD=... psql -h aws-1-eu-central-1.pooler.supabase.com -p 5432 \
-  -U postgres.vgwwidekswqeffltqhag -d postgres \
-  -c "CREATE SCHEMA IF NOT EXISTS mesh_bot; CREATE SCHEMA IF NOT EXISTS mesh_cp;"
-
-# 2. Дамп схемы из локальной БД и pipe в облако (plain SQL)
-docker exec supabase-db pg_dump -U postgres -n mesh_bot --no-owner --no-acl -Fp 2>/dev/null | \
-  PGPASSWORD=... psql -h aws-1-eu-central-1.pooler.supabase.com -p 5432 \
-    -U postgres.vgwwidekswqeffltqhag -d postgres -q
-
-docker exec supabase-db pg_dump -U postgres -n mesh_cp --no-owner --no-acl -Fp 2>/dev/null | \
-  PGPASSWORD=... psql -h aws-1-eu-central-1.pooler.supabase.com -p 5432 \
-    -U postgres.vgwwidekswqeffltqhag -d postgres -q
-
-# 3. Обновить DATABASE_URL в stack.env каждого сервиса
-# См. backend/cp.env (mesh-back), frontend/bot.env (mesh-front)
-```
-
----
-
-## 8. Migration to new server — checklist
+## 7. Migration to new server — checklist
 
 ### Pre-requisites
 - Docker + Docker Compose на новом сервере
